@@ -1,0 +1,6 @@
+##gff-version 3
+chr1	test	CDS	1	18	.	+	0	ID=cds1 ID=CDS:ENSB:r5WEh40Tawuf7WG;Parent=transcript:ENSB:r5WEh40Tawuf7WG;protein_id=ENSB:r5WEh40Tawuf7WG
+###
+
+chrX	test	CDS	13	21	.	-	0	ID=cds2 ID=CDS:ENSB:r5WEh40Tawuf7WG;Parent=transcript:ENSB:r5WEh40Tawuf7WG;protein_id=ENSB:r5WEh40Tawuf7WG
+###
