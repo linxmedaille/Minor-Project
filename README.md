@@ -1,8 +1,9 @@
 # Minor-Project
 
-CS39620: Stop codon frequency 
+<font size="5">Scheme: Data Science 7G73  </font>. 
+
 Author: Tom Janvier 
-Scheme: Data Science 7G73  
+
 
 Project Description 
 
