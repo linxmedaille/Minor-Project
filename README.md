@@ -52,3 +52,5 @@ Reddy, Michael K. “Amino Acid | Definition, Structure, & Facts.” Encyclopæd
 .
 
 “What Are the 3 Stop Codons and How Do They Work?” Biology Insights, 9 Jan. 2026, biologyinsights.com/what-are-the-3-stop-codons-and-how-do-they-work/. Accessed 9 Feb. 2026.
+
+“Documentation · Biopython.” Biopython.org, biopython.org/wiki/Documentation. Accessed 12 Feb. 2026.
