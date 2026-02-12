@@ -2,9 +2,8 @@
 
 # CS39620: Stop Codon Frequency
 
-### Author: Tom Janvier (230128875)
-### Scheme: Data Science 7G73
-### Date: 09/02/2026
+### Author: Tom Janvier
+### Scheme: Data Science 
 
 ## Project Description
 
