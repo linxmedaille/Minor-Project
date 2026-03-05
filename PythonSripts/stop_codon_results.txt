@@ -1,0 +1,4 @@
+Genome	TAA	TAG	TGA	Total
+Mycobacterium_tuberculosis_gca_001196295.6505_4_11_.dna.toplevel.fa	663	1521	2399	4583
+test1.fa	2	1	2	5
+test2.fa	1	1	1	3
