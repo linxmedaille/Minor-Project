@@ -1,0 +1,31 @@
+{
+  "genome": {
+    "translation_table": 11
+  },
+  "features": [
+    {
+      "type": "cds",
+      "contig": "testFile1.contig001",
+      "start": 1,
+      "stop": 12,
+      "strand": "+",
+      "product": "Test protein TGA"
+    },
+    {
+      "type": "cds",
+      "contig": "testFile1.contig001",
+      "start": 13,
+      "stop": 24,
+      "strand": "+",
+      "product": "Test protein TAG"
+    },
+    {
+      "type": "cds",
+      "contig": "testFile1.contig001",
+      "start": 25,
+      "stop": 36,
+      "strand": "-",
+      "product": "Test protein TAA"
+    }
+  ]
+}
