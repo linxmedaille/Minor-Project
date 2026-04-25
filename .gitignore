@@ -2,3 +2,5 @@
 *.fa
 *.fasta
 *.tsv
+*.json
+*.bakta.json
