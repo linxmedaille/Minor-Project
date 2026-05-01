@@ -53,3 +53,85 @@ Reddy, Michael K. “Amino Acid | Definition, Structure, & Facts.” Encyclopæd
 “What Are the 3 Stop Codons and How Do They Work?” Biology Insights, 9 Jan. 2026, biologyinsights.com/what-are-the-3-stop-codons-and-how-do-they-work/. Accessed 9 Feb. 2026.
 
 “Documentation · Biopython.” Biopython.org, biopython.org/wiki/Documentation. Accessed 12 Feb. 2026.
+
+
+
+
+Stop Codon Frequency Analyser
+A Python tool for analysing terminal stop codon usage (TAA, TAG, TGA) across bacterial genomes, using FASTA assembly files and Bakta JSON annotation files.
+
+Requirements
+
+Python 3.10+
+Biopython — pip install biopython
+Requests — pip install requests
+
+
+Project Structure
+project/
+├── analysis.py            # Core stop codon extraction logic
+├── batch_pipeline.py      # Large-scale download and processing pipeline
+├── DataFiles/
+│   ├── FAFiles/           # FASTA genome files (.fa)
+│   ├── JsonFiles/         # Bakta annotation files (.bakta.json)
+│   └── Lists/
+│       ├── file_list.r0.2.v2.tsv        # AllTheBacteria FA manifest
+│       └── atb.bakta.r0.2.status.tsv    # AllTheBacteria Bakta manifest
+├── stop_codon_results.csv         # Output: per-genome stop codon counts
+├── codon_usage_results.csv        # Output: full codon usage table
+└── pipeline_progress.json         # Auto-generated: pipeline resume file
+
+Quick Start — Single Genome (analysis.py)
+Use this if you have a FASTA file and its Bakta JSON annotation and just want to analyse one genome locally.
+1. Place your files in the correct folders:
+DataFiles/FAFiles/myGenome.fa
+DataFiles/JsonFiles/myGenome.bakta.json
+The filename stem (the part before the first .) must match between the two files.
+2. Enable test mode in analysis.py:
+Open analysis.py and set:
+pythonUSE_TEST_FILES = True
+Then change "testFile1" in match_genome_files() to match your filename stem, or set USE_TEST_FILES = False to process all matched files in the folders.
+3. Run:
+bashpython analysis.py
+4. Check outputs:
+
+stop_codon_results.csv — stop codon counts and proportions per genome
+codon_usage_results.csv — full codon frequency table per genome
+
+
+Large-Scale Pipeline — AllTheBacteria (batch_pipeline.py)
+Use this to process thousands of genomes from the AllTheBacteria dataset. The pipeline downloads one batch archive at a time, analyses each genome, writes results, and deletes temporary files before moving to the next batch.
+1. Download the manifest files from AllTheBacteria and place them at:
+DataFiles/Lists/file_list.r0.2.v2.tsv
+DataFiles/Lists/atb.bakta.r0.2.status.tsv
+2. Run the pipeline:
+bashpython batch_pipeline.py
+The pipeline will:
+
+Match samples that appear in both manifest files with a Bakta status of PASS
+Discover Bakta archive download URLs automatically from the AllTheBacteria OSF project
+Download, extract, analyse, and clean up one batch at a time
+Append results to stop_codon_results.csv as each genome is processed
+Save progress to pipeline_progress.json after every sample
+
+3. Resuming an interrupted run:
+Simply run python batch_pipeline.py again. Already-processed samples listed in pipeline_progress.json are skipped automatically.
+
+Output Files
+stop_codon_results.csv
+One row per genome with the following columns:
+ColumnDescriptionGenomeSample IDSpeciesSpecies assignment (batch pipeline only)TAARaw count of TAA stop codonsTAGRaw count of TAG stop codonsTGARaw count of TGA stop codonsTotal_Valid_Stop_CodonsTotal of TAA + TAG + TGACDS_CountNumber of CDS features processedInvalid_CountCDS features where stop codon could not be extractedTAA_ProportionTAA / Total_ValidTAG_ProportionTAG / Total_ValidTGA_ProportionTGA / Total_ValidAvg_CDS_LengthMean CDS length in base pairsGC_ContentGenomic GC content (%)Genome_Size_bpTotal genome size in base pairsContig_CountNumber of contigs in the assembly
+codon_usage_results.csv
+One row per genome, one column per unique codon triplet observed across the dataset. Values are raw counts of each codon across all CDS features in that genome.
+
+Configuration
+Key settings at the top of analysis.py:
+VariableDefaultDescriptionFA_DIRDataFiles/FAFilesFolder containing FASTA filesJSON_DIRDataFiles/JsonFilesFolder containing Bakta JSON filesOUT_FILEstop_codon_results.csvStop codon output pathCODON_OUT_FILEcodon_usage_results.csvCodon usage output pathUSE_TEST_FILESTrueIf True, only processes testFile1
+
+Notes
+
+File pairing is done by filename stem: SAMEA1234.fa is matched with SAMEA1234.bakta.json.
+Bakta uses 1-based inclusive coordinates. The code handles conversion to Python's 0-based indexing automatically.
+On the positive strand, the stop codon is the last 3 bases of the annotated CDS region.
+On the negative strand, the stop codon is the reverse complement of the first 3 bases of the annotated region.
+Any extracted triplet that is not TAA, TAG, or TGA is recorded as Invalid_Count and excluded from proportions.
