@@ -102,15 +102,7 @@ DataFiles/JsonFiles/myGenome.bakta.json
  
 The filename stem (the part before the first `.`) must match between the two files.
  
-**2. Enable test mode in `analysis.py`:**
- 
-Open `analysis.py` and set:
- 
-```python
-USE_TEST_FILES = True
-```
- 
-Then change `"testFile1"` in `match_genome_files()` to match your filename stem, or set `USE_TEST_FILES = False` to process all matched files in the folders.
+
  
 **3. Run:**
  
