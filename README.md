@@ -120,12 +120,9 @@ python analysis.py
  
 Use this to process thousands of genomes from the [AllTheBacteria](https://allthebacteria.readthedocs.io/) dataset. The pipeline downloads one batch archive at a time, analyses each genome, writes results, and deletes temporary files before moving to the next batch.
  
-**1. Download the manifest files from AllTheBacteria and place them at:**
+**2. Set the branch containing the batches ex tyw72,c4xm5:**
  
-```
-DataFiles/Lists/file_list.r0.2.v2.tsv
-DataFiles/Lists/atb.bakta.r0.2.status.tsv
-```
+
  
 **2. Run the pipeline:**
  
