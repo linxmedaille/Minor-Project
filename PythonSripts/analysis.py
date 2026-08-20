@@ -1,6 +1,6 @@
 import os
 import json
-from collections import Counter
+
 from Bio import SeqIO
 
 
@@ -10,90 +10,108 @@ JSON_DIR = os.path.join(BASE_DIR, "DataFiles", "JsonFiles")
 OUT_FILE = os.path.join(BASE_DIR, "stop_codon_results.csv")
 CODON_OUT_FILE = os.path.join(BASE_DIR, "codon_usage_results.csv")
 
-VALID_STOP_CODONS = {"TAA", "TAG", "TGA"}
+VALID_STOP_CODONS = ["TAA", "TAG", "TGA"]
 
 USE_TEST_FILES = True
 
 
+def read_fasta(fasta_path):
+    genome = {}
+    for record in SeqIO.parse(fasta_path, "fasta"):
+        genome[record.id] = record.seq
+    return genome
+
+
+def count_gc(genome):
+    gc_count = 0
+    for sequence in genome.values():
+        text = str(sequence).upper()
+        gc_count += text.count("G")
+        gc_count += text.count("C")
+    return gc_count
+
+
 def count_stop_codons_json(fasta_path, json_path):
-    try:
-        genome = {rec.id: rec.seq for rec in SeqIO.parse(fasta_path, "fasta")}
-    except FileNotFoundError:
+    if not os.path.exists(fasta_path):
         raise FileNotFoundError(f"FASTA file not found: {fasta_path}")
 
-    if not genome:
+    genome = read_fasta(fasta_path)
+    if len(genome) == 0:
         raise ValueError(f"No sequences found in FASTA file: {fasta_path}")
 
-    genome_size = sum(len(seq) for seq in genome.values())
-    contig_count = len(genome)
-    gc_count = sum(seq.upper().count("G") + seq.upper().count("C") for seq in genome.values())
-    gc_content = round(gc_count / genome_size * 100, 4) if genome_size else 0.0
+    genome_size = 0
+    for sequence in genome.values():
+        genome_size += len(sequence)
 
-    try:
-        with open(json_path) as fh:
-            annotation = json.load(fh)
-    except FileNotFoundError:
+    gc_count = count_gc(genome)
+    if genome_size > 0:
+        gc_content = round(gc_count / genome_size * 100, 4)
+    else:
+        gc_content = 0.0
+
+    if not os.path.exists(json_path):
         raise FileNotFoundError(f"JSON file not found: {json_path}")
-    except json.JSONDecodeError as e:
-        raise ValueError(f"Malformed JSON in {json_path}: {e}")
+
+    with open(json_path) as json_file:
+        annotation = json.load(json_file)
 
     counts = {
-        "TAA": 0, "TAG": 0, "TGA": 0,
-        "total_valid": 0, "cds_count": 0, "invalid_count": 0,
-        "total_cds_length": 0, "codon_counts": Counter(),
-        "genome_size": genome_size, "contig_count": contig_count,
+        "TAA": 0,
+        "TAG": 0,
+        "TGA": 0,
+        "total_valid": 0,
+        "cds_count": 0,
+        "invalid_count": 0,
+        "total_cds_length": 0,
+        "codon_counts": {},
+        "genome_size": genome_size,
+        "contig_count": len(genome),
         "gc_content": gc_content,
     }
 
-    for feature in annotation.get("features", []):
+    features = annotation.get("features", [])
+    for feature in features:
         if feature.get("type", "").upper() != "CDS":
             continue
 
         counts["cds_count"] += 1
 
-        seq_id = feature.get("contig") or feature.get("sequence")
+        contig_name = feature.get("contig")
+        if contig_name is None:
+            contig_name = feature.get("sequence")
+
         strand = feature.get("strand")
 
-        try:
-            start_1based = int(feature["start"])
-            end_1based   = int(feature["stop"])
-        except (KeyError, TypeError, ValueError):
+        if contig_name not in genome:
+            counts["invalid_count"] += 1
+            continue
+        if "start" not in feature or "stop" not in feature:
+            counts["invalid_count"] += 1
+            continue
+        if strand != "+" and strand != "-":
             counts["invalid_count"] += 1
             continue
 
-        if seq_id not in genome:
-            counts["invalid_count"] += 1
-            continue
+        contig = genome[contig_name]
 
-        contig = genome[seq_id]
-        start_0 = start_1based - 1
-        counts["total_cds_length"] += end_1based - start_1based + 1
+        start = int(feature["start"])
+        end = int(feature["stop"])
+        start_index = start - 1
 
-        # Bakta includes the stop codon inside the annotated coordinates:
-        # + strand: last 3 bases;  - strand: first 3 bases (rev-comp)
-        try:
-            if strand == "+":
-                stop_codon = str(contig[end_1based - 3 : end_1based]).upper()
-            elif strand == "-":
-                stop_codon = str(contig[start_0 : start_0 + 3].reverse_complement()).upper()
-            else:
-                counts["invalid_count"] += 1
-                continue
-        except Exception:
-            counts["invalid_count"] += 1
-            continue
+        counts["total_cds_length"] += end - start + 1
 
-        try:
-            if strand == "+":
-                full_cds = str(contig[start_0 : end_1based]).upper()
-            else:
-                full_cds = str(contig[start_0 : end_1based].reverse_complement()).upper()
-            for i in range(0, len(full_cds) - 2, 3):
-                triplet = full_cds[i : i + 3]
-                if len(triplet) == 3:
-                    counts["codon_counts"][triplet] += 1
-        except Exception:
-            pass
+        if strand == "+":
+            gene = str(contig[start_index:end]).upper()
+        else:
+            gene = str(contig[start_index:end].reverse_complement()).upper()
+
+        stop_codon = gene[-3:]
+
+        for offset in range(0, len(gene) - 2, 3):
+            codon = gene[offset:offset + 3]
+            if codon not in counts["codon_counts"]:
+                counts["codon_counts"][codon] = 0
+            counts["codon_counts"][codon] += 1
 
         if stop_codon in VALID_STOP_CODONS:
             counts[stop_codon] += 1
@@ -110,86 +128,94 @@ def safe_proportion(part, total):
     return f"{part / total:.4f}"
 
 
-def match_genome_files(fa_dir=FA_DIR, json_dir=JSON_DIR):
-    fa_map = {}
-    for fname in sorted(os.listdir(fa_dir)):
-        if fname.endswith(".fa"):
-            genome_id = fname.split(".")[0]
-            fa_map[genome_id] = os.path.join(fa_dir, fname)
+def find_files(folder, ending):
+    file_map = {}
+    for filename in sorted(os.listdir(folder)):
+        if filename.endswith(ending):
+            genome_id = filename.split(".")[0]
+            file_map[genome_id] = os.path.join(folder, filename)
+    return file_map
 
-    json_map = {}
-    for fname in sorted(os.listdir(json_dir)):
-        if fname.endswith(".json"):
-            genome_id = fname.split(".")[0]
-            json_map[genome_id] = os.path.join(json_dir, fname)
+
+def match_genome_files(fa_dir=FA_DIR, json_dir=JSON_DIR):
+    fasta_files = find_files(fa_dir, ".fa")
+    json_files = find_files(json_dir, ".json")
 
     matched = []
-    for genome_id, fasta_path in sorted(fa_map.items()):
+    for genome_id in sorted(fasta_files):
         if USE_TEST_FILES and genome_id != "testFile1":
             continue
-        if genome_id in json_map:
-            matched.append((genome_id, fasta_path, json_map[genome_id]))
+        if genome_id in json_files:
+            matched.append((genome_id, fasta_files[genome_id], json_files[genome_id]))
         else:
             print(f"  [SKIP] No JSON for {genome_id}.fa")
 
-    for genome_id in sorted(json_map):
+    for genome_id in sorted(json_files):
         if USE_TEST_FILES and genome_id != "testFile1":
             continue
-        if genome_id not in fa_map:
+        if genome_id not in fasta_files:
             print(f"  [SKIP] No FASTA for {genome_id}.bakta.json")
 
     return matched
 
 
-def scan_genome_folder(fa_dir=FA_DIR, json_dir=JSON_DIR, output_path=OUT_FILE, codon_output_path=CODON_OUT_FILE):
+def scan_genome_folder(fa_dir=FA_DIR, json_dir=JSON_DIR,
+                       output_path=OUT_FILE, codon_output_path=CODON_OUT_FILE):
+
     pairs = match_genome_files(fa_dir, json_dir)
-    if not pairs:
+    if len(pairs) == 0:
         print("No matched genome/JSON pairs found.")
         return
 
-    header = (
-        "Genome,TAA,TAG,TGA,"
-        "Total_Valid_Stop_Codons,CDS_Count,Invalid_Count,"
-        "TAA_Proportion,TAG_Proportion,TGA_Proportion,Avg_CDS_Length"
-    )
-
     results = []
-
     for genome_id, fasta_path, json_path in pairs:
         try:
-            c = count_stop_codons_json(fasta_path, json_path)
-        except Exception as e:
-            print(f"  [ERROR] {genome_id}: {e}")
+            counts = count_stop_codons_json(fasta_path, json_path)
+        except Exception as error:
+            print(f"  [ERROR] {genome_id}: {error}")
             continue
 
-        results.append((genome_id, c))
-        total = c["total_valid"]
-        print(f"  [OK] {genome_id}  —  TAA={c['TAA']}, TAG={c['TAG']}, TGA={c['TGA']}, "
-              f"Valid={total}, CDS={c['cds_count']}, Invalid={c['invalid_count']}")
+        results.append((genome_id, counts))
+        print(f"  [OK] {genome_id}  -  TAA={counts['TAA']}, TAG={counts['TAG']}, "
+              f"TGA={counts['TGA']}, Valid={counts['total_valid']}, "
+              f"CDS={counts['cds_count']}, Invalid={counts['invalid_count']}")
 
-    with open(output_path, "w") as out:
-        out.write(header + "\n")
-        for genome_id, c in results:
-            total = c["total_valid"]
-            avg_len = safe_proportion(c["total_cds_length"], c["cds_count"])
-            row = (
-                f"{genome_id},"
-                f"{c['TAA']},{c['TAG']},{c['TGA']},"
-                f"{total},{c['cds_count']},{c['invalid_count']},"
-                f"{safe_proportion(c['TAA'], total)},"
-                f"{safe_proportion(c['TAG'], total)},"
-                f"{safe_proportion(c['TGA'], total)},"
-                f"{avg_len}"
-            )
-            out.write(row + "\n")
+    header = ("Genome,TAA,TAG,TGA,"
+              "Total_Valid_Stop_Codons,CDS_Count,Invalid_Count,"
+              "TAA_Proportion,TAG_Proportion,TGA_Proportion,Avg_CDS_Length")
+
+    with open(output_path, "w") as out_file:
+        out_file.write(header + "\n")
+        for genome_id, counts in results:
+            total = counts["total_valid"]
+            taa_share = safe_proportion(counts["TAA"], total)
+            tag_share = safe_proportion(counts["TAG"], total)
+            tga_share = safe_proportion(counts["TGA"], total)
+            avg_length = safe_proportion(counts["total_cds_length"], counts["cds_count"])
+
+            row = (f"{genome_id},"
+                   f"{counts['TAA']},{counts['TAG']},{counts['TGA']},"
+                   f"{total},{counts['cds_count']},{counts['invalid_count']},"
+                   f"{taa_share},{tag_share},{tga_share},{avg_length}")
+            out_file.write(row + "\n")
+
     print(f"\nStop-codon results written to: {output_path}")
 
-    all_codons = sorted({c for _, res in results for c in res["codon_counts"]})
-    with open(codon_output_path, "w") as cout:
-        cout.write("Genome," + ",".join(all_codons) + "\n")
-        for genome_id, c in results:
-            counts_row = ",".join(str(c["codon_counts"].get(cod, 0)) for cod in all_codons)
-            cout.write(f"{genome_id},{counts_row}\n")
+    all_codons = []
+    for genome_id, counts in results:
+        for codon in counts["codon_counts"]:
+            if codon not in all_codons:
+                all_codons.append(codon)
+    all_codons.sort()
+
+    with open(codon_output_path, "w") as codon_file:
+        codon_file.write("Genome," + ",".join(all_codons) + "\n")
+        for genome_id, counts in results:
+            numbers = []
+            for codon in all_codons:
+                numbers.append(str(counts["codon_counts"].get(codon, 0)))
+            codon_file.write(genome_id + "," + ",".join(numbers) + "\n")
+
     print(f"Codon-usage results written to: {codon_output_path}")
 
 
